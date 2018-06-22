@@ -30,7 +30,8 @@ ui <- fluidPage(
       radioButtons("sep", "Separator",
                    choices = c(Comma = ",",
                                Semicolon = ";",
-                               Tab = "\t"),
+                               Tab = "\t",
+                               Space = " "),
                    selected = ","),
       hr(),
       checkboxInput("additional", "Multiple files", FALSE),
@@ -48,7 +49,8 @@ ui <- fluidPage(
         radioButtons("sep2", "Separator",
                      choices = c(Comma = ",",
                                  Semicolon = ";",
-                                 Tab = "\t"),
+                                 Tab = "\t",
+                                 Space = " "),
                      selected = ",")
       )
       
@@ -74,7 +76,8 @@ ui <- fluidPage(
                            fluidRow(selectInput('test', "Test", 
                                                 choices = list("None" = 0)),
                                     conditionalPanel("(!input.additional) &&  (input.checkboxParadigm == \"Bayesian\")",
-                                                     checkboxInput("checkboxPlot", "Plot", FALSE))
+                                                     fluidRow(checkboxInput("checkboxPlot", "Plot", FALSE),
+                                                     downloadLink('downloadPlot', 'Download')))
                            ),
                            hr(), 
                            h4("Table Output"),

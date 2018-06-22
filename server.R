@@ -1,7 +1,7 @@
-library(shiny)
-library(ggplot2)
-library(reshape2)
-library(devtools)
+require(shiny)
+require(ggplot2)
+require(reshape2)
+require(devtools)
 
 if("rNPBST" %in% rownames(installed.packages())){
   library(rNPBST)
@@ -10,17 +10,26 @@ if("rNPBST" %in% rownames(installed.packages())){
 }
 
 format.table <- function(l){
+  if("sample" %in% names(l)){
+    l$sample <- NULL
+  }
+  
   names.l <- names(l)
-  max.length <- max(sapply(l, length))
+  max.length <- max(sapply(l, function(x)length(x)))
   which.vector <- sapply(l, length) > 1
   table <- matrix("", ncol = max.length + 1, nrow = length(l) + sum(which.vector))
-  
   for(i in 1:length(l)){
-    index.i <- i + sum(which.vector[1:(i-1)])
+    index.i <- i + ifelse(i == 1, 0, sum(which.vector[1:(i-1)]))
     table[index.i, 1] <- names.l[i]
     if(which.vector[i]){
-      table[index.i, seq(2, along.with = l[[i]])] <- names(l[[i]])
-      table[index.i + 1, seq(2, along.with = l[[i]])] <- l[[i]]
+      if(is.null(names(l[[i]]))){
+        names.li <- rep("", times = length(l[[i]]))
+      }
+      else{
+        names.li <- names(l[[i]])
+      }
+      table[index.i, seq(2, along.with = l[[i]])] <- names.li
+      table[index.i + 1, seq(2, along.with = l[[i]])] <- unname(l[[i]])
     }
     else{
       table[index.i, 2] <- l[[i]]
@@ -29,12 +38,22 @@ format.table <- function(l){
   colnames(table) <- c("Attribute", paste("Value", 1:max.length))
   return(table)
 }
+format.table(bs)
 
 apply.parametric.test <- function(df, test){
   results <- switch (test,
           "ANOVA" = {
-            long.df <- melt(df)
-            aov(value ~ var, long.df)
+            long.df <- reshape2::melt(df)
+            results.anova <- unlist(summary(aov(value ~ variable, long.df)))
+            results.anova <- matrix(results.anova, nrow = 2,
+                                    dimnames = list( Variable = c("variable","residuals"),
+                                                     Value = c("Df","SumSq","MeanSq", "Fvalue","Pr(>F)")))
+            results.anova <- rNPBST::make.htest(method = "ANOVA test",
+                                                p.value = results.anova[1,5],
+                                                df = results.anova[,1],
+                                                SumSq = results.anova[,2],
+                                                MeanSq = results.anova[,3],
+                                                Fvalue = results.anova[,4])
           },
           "t-test" = t.test(df[ ,1], df[ ,2])
           )
@@ -46,7 +65,9 @@ apply.non.parametric.test <- function(df, test){
           "Friedman" = rNPBST::friedman.test(df),
           "FriedmanAR" = rNPBST::friedmanAR.test(df),
           "Iman-Davenport" = rNPBST::imanDavenport.test(df),
-          "Quade" = quade.test(df))
+          "Quade" = quade.test(as.matrix(df,
+                                         dimnames = list(as.character(1:nrow(df)),
+                                                         LETTERS[1:ncol(df)]))))
   return(results)
 }
 
@@ -89,7 +110,15 @@ apply.test.two.datasets <- function(df1, df2, paradigm, test, ...){
                     })
 }
 
-# Define server logic to read selected file ----
+
+
+
+
+####
+#' Server
+#' Define server logic to read selected file
+####
+
 server <- function(input, output,session) {
   # Read first dataset
   df.reactive <- function(){
@@ -97,8 +126,7 @@ server <- function(input, output,session) {
     
     df <- read.csv(input$file1$datapath,
                    header = input$header,
-                   sep = input$sep,
-                   quote = input$quote)
+                   sep = input$sep)
     return(df)
   }
   # Read additional dataset
@@ -107,9 +135,8 @@ server <- function(input, output,session) {
       req(input$file2)
       
       df2 <- read.csv(input$file2$datapath,
-                      header = input$header,
-                      sep = input$sep,
-                      quote = input$quote)
+                      header = input$header2,
+                      sep = input$sep2)
       return(df2)
     }
   }
@@ -144,7 +171,7 @@ server <- function(input, output,session) {
                              "Parametric" = list("ANOVA" = "ANOVA", "t-test" = "t-test"),
                              "Non-Parametric" = {
                                list("Friedman" = "Friedman", 
-                                    "Friedman Aligned-Rank" = "Friedman-AR",
+                                    "Friedman Aligned-Rank" = "FriedmanAR",
                                     "Iman-Davenport" = "Iman-Davenport", 
                                     "Quade" = "Quade")
                              },
@@ -179,7 +206,7 @@ server <- function(input, output,session) {
                              "Parametric" = list("ANOVA" = "ANOVA", "t-test" = "t-test"),
                              "Non-Parametric" = {
                                list("Friedman" = "Friedman", 
-                                    "Friedman Aligned-Rank" = "Friedman-AR",
+                                    "Friedman Aligned-Rank" = "FriedmanAR",
                                     "Iman-Davenport" = "Iman-Davenport", 
                                     "Quade" = "Quade")
                              },
@@ -217,14 +244,26 @@ server <- function(input, output,session) {
   reactive.plot <- reactive({
     req(input$file1)
     if(ncol(df.reactive() >= 2)){
-      if(!input$additional && input$checkboxParadigm == "Bayesian" && (input$test %in% c("Sign", "Signed-Rank", "Corr-t-test")))
+      if(!input$additional && 
+         input$checkboxParadigm == "Bayesian" && 
+         (input$test %in% c("Sign", "Signed-Rank", "Corr-t-test")))
         plot <- switch(input$test, 
-                       "Corr-t-test" = rNPBST::plotPosterior(reactive.test(), names = c("A", "B"), dataset = "DF"),
+                       "Corr-t-test" = rNPBST::plotPosterior(reactive.test(), 
+                                                             names = c("A", "B"), 
+                                                             dataset = "dataset"),
                        "Sign" = rNPBST::plotSimplex(reactive.test()$sample),
                        "Signed-Rank" = rNPBST::plotSimplex(reactive.test()$sample))
     }
     return(plot)
   })
+  output$downloadData <- downloadHandler(
+    filename = function() {
+      paste('plot-', Sys.Date(), '.png', sep='')
+    },
+    content = function(con) {
+      ggplot2::ggsave(plot = renderPlot(reactive.plot()), filename = con)
+    }
+  )
 
   output$tex.test.result <- renderText(rNPBST::htest2Tex(reactive.test()))
   output$table.test.result <- renderDataTable(format.table(reactive.test()))
