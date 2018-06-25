@@ -2,6 +2,7 @@ require(shiny)
 require(ggplot2)
 require(reshape2)
 require(devtools)
+require(ggtern)
 
 if("rNPBST" %in% rownames(installed.packages())){
   library(rNPBST)
@@ -13,9 +14,11 @@ format.table <- function(l){
   if("sample" %in% names(l)){
     l$sample <- NULL
   }
-  
+  if("dist" %in% names(l)){
+    l$dist <- NULL
+  }
   names.l <- names(l)
-  max.length <- max(sapply(l, function(x)length(x)))
+  max.length <- max(sapply(l, length))
   which.vector <- sapply(l, length) > 1
   table <- matrix("", ncol = max.length + 1, nrow = length(l) + sum(which.vector))
   for(i in 1:length(l)){
@@ -38,9 +41,8 @@ format.table <- function(l){
   colnames(table) <- c("Attribute", paste("Value", 1:max.length))
   return(table)
 }
-format.table(bs)
 
-apply.parametric.test <- function(df, test){
+apply.parametric.test <- function(df, test, columnfirst = 0, columnsecond = 0){
   results <- switch (test,
           "ANOVA" = {
             long.df <- reshape2::melt(df)
@@ -55,42 +57,44 @@ apply.parametric.test <- function(df, test){
                                                 MeanSq = results.anova[,3],
                                                 Fvalue = results.anova[,4])
           },
-          "t-test" = t.test(df[ ,1], df[ ,2])
+          "t-test" = t.test(df[ ,columnfirst], df[ ,columnsecond])
           )
   return(results)
 }
 
-apply.non.parametric.test <- function(df, test){
+apply.non.parametric.test <- function(df, test, columnfirst = 0, columnsecond = 0){
   results <- switch (test,
-          "Friedman" = rNPBST::friedman.test(df),
-          "FriedmanAR" = rNPBST::friedmanAR.test(df),
-          "Iman-Davenport" = rNPBST::imanDavenport.test(df),
-          "Quade" = quade.test(as.matrix(df,
-                                         dimnames = list(as.character(1:nrow(df)),
-                                                         LETTERS[1:ncol(df)]))))
+                     "Wilcoxon" = rNPBST::wilcoxon.test(df[,c(columnfirst,columnsecond)]),
+                     "WilcoxonRS" = rNPBST::wilcoxonRankSum.test(df[,c(columnfirst,columnsecond)]),
+                     "Friedman" = rNPBST::friedman.test(df),
+                     "FriedmanAR" = rNPBST::friedmanAR.test(df),
+                     "Iman-Davenport" = rNPBST::imanDavenport.test(df),
+                     "Quade" = quade.test(as.matrix(df,
+                                                    dimnames = list(as.character(1:nrow(df)),
+                                                                    LETTERS[1:ncol(df)]))))
   return(results)
 }
 
 
-apply.bayesian.test <- function(df, test){
+apply.bayesian.test <- function(df, test, columnfirst = 0, columnsecond = 0){
   results <- switch (test,
           "BayesFriedman" = rNPBST::bayesianFriedman.test(df, imprecise = T),
-          "Sign" = rNPBST::bayesianSign.test(df[ ,1], df[ ,2]),
-          "Signed-Rank" = rNPBST::bayesianSignedRank.test(df[ ,1], df[ ,2]),
-          "Corr-t-test" = rNPBST::bayesianCorrelatedT.test(df[ ,1], df[ ,2]))
+          "Sign" = rNPBST::bayesianSign.test(df[ ,columnfirst], df[ ,columnsecond]),
+          "Signed-Rank" = rNPBST::bayesianSignedRank.test(df[ ,columnfirst], df[ ,columnsecond]),
+          "Corr-t-test" = rNPBST::bayesianCorrelatedT.test(df[ ,columnfirst], df[ ,columnsecond]))
   return(results)
 }
 
 apply.test <- function(df, paradigm, test, ...){
   switch (paradigm,
           "Parametric" = {
-            results <- apply.parametric.test(df, test)
+            results <- apply.parametric.test(df, test,...)
           },
           "Non-Parametric" = {
-            results <- apply.non.parametric.test(df, test)
+            results <- apply.non.parametric.test(df, test,...)
           },
           "Bayesian" = {
-            results <- apply.bayesian.test(df, test)
+            results <- apply.bayesian.test(df, test,...)
           }
   )
   return(results)
@@ -122,12 +126,21 @@ apply.test.two.datasets <- function(df1, df2, paradigm, test, ...){
 server <- function(input, output,session) {
   # Read first dataset
   df.reactive <- function(){
-    req(input$file1)
-    
-    df <- read.csv(input$file1$datapath,
-                   header = input$header,
-                   sep = input$sep)
-    return(df)
+    if(!input$defaultdataset){
+      df <- read.csv(input$file1$datapath,
+                     header = input$header,
+                     sep = input$sep)
+      return(df)
+    }
+    else{
+      return(switch(input$default.file1,
+             "results" = rNPBST::results,
+             "results.knn" = rNPBST::results.knn,
+             "results.lr" = rNPBST::results.lr,
+             "results.nb" = rNPBST::results.nb,
+             "results.nnet" = rNPBST::results.nnet,
+             "results.rf" = rNPBST::results.rf))
+    }
   }
   # Read additional dataset
   df2.reactive <- function(){
@@ -147,6 +160,8 @@ server <- function(input, output,session) {
   
   # Update tests
   observeEvent(input$additional,{
+    updateNumericInput(session, "columnfirst", value = 1, min = 1, max = ncol(df.reactive()))
+    updateNumericInput(session, "columnsecond", value =  2, min = 1, max = ncol(df.reactive()))
     # Update available tests if two files
     if(input$additional){
       updateRadioButtons(session, inputId =  'checkboxParadigm', 
@@ -170,13 +185,16 @@ server <- function(input, output,session) {
       updated.list <- switch(input$checkboxParadigm,
                              "Parametric" = list("ANOVA" = "ANOVA", "t-test" = "t-test"),
                              "Non-Parametric" = {
-                               list("Friedman" = "Friedman", 
+                               list("Wilcoxon" = "Wilcoxon", 
+                                    "Wilcoxon Rank-Sum" = "WilcoxonRS",
+                                    "Friedman" = "Friedman", 
                                     "Friedman Aligned-Rank" = "FriedmanAR",
                                     "Iman-Davenport" = "Iman-Davenport", 
                                     "Quade" = "Quade")
                              },
                              "Bayesian" = {
-                               list("Friedman" = "Friedman", "Sign test" = "Sign",
+                               list("Friedman" = "Friedman", 
+                                    "Sign test" = "Sign",
                                     "Signed-rank" = "Signed-Rank",
                                     "Correlated t-test" = "Corr-t-test")
                              })
@@ -190,6 +208,8 @@ server <- function(input, output,session) {
   })
   
   observeEvent(input$checkboxParadigm,{
+    updateNumericInput(session, "columnfirst", value = 1, min = 1, max = ncol(df.reactive()))
+    updateNumericInput(session, "columnsecond", value =  2, min = 1, max = ncol(df.reactive()))
     # Update available tests if two files
     if(input$additional){
       updated.list <- switch(input$checkboxParadigm,
@@ -205,13 +225,16 @@ server <- function(input, output,session) {
       updated.list <- switch(input$checkboxParadigm,
                              "Parametric" = list("ANOVA" = "ANOVA", "t-test" = "t-test"),
                              "Non-Parametric" = {
-                               list("Friedman" = "Friedman", 
+                               list("Wilcoxon" = "Wilcoxon", 
+                                    "Wilcoxon Rank-Sum" = "WilcoxonRS",
+                                    "Friedman" = "Friedman", 
                                     "Friedman Aligned-Rank" = "FriedmanAR",
                                     "Iman-Davenport" = "Iman-Davenport", 
                                     "Quade" = "Quade")
                              },
                              "Bayesian" = {
-                               list("Friedman" = "BayesFriedman", "Sign test" = "Sign",
+                               list("Friedman" = "BayesFriedman", 
+                                    "Sign test" = "Sign",
                                     "Signed-rank" = "Signed-Rank",
                                     "Correlated t-test" = "Corr-t-test")
                              })
@@ -227,14 +250,14 @@ server <- function(input, output,session) {
   
   # Compute Test
   reactive.test <- reactive({
-    req(input$file1)
     if(ncol(df.reactive() >= 2)){
       if(input$additional)
         test.result <- apply.test.two.datasets(df.reactive(), df2.reactive(), 
                                                input$checkboxParadigm, 
                                                input$test)
       else{
-        test.result <- apply.test(df.reactive(), input$checkboxParadigm, input$test)
+        test.result <- apply.test(df.reactive(), input$checkboxParadigm, input$test, 
+                                  columnfirst = input$columnfirst, columnsecond = input$columnsecond)
       }
     }
     return(test.result)
@@ -242,19 +265,35 @@ server <- function(input, output,session) {
   
   # Plot Test
   reactive.plot <- reactive({
-    req(input$file1)
-    if(ncol(df.reactive() >= 2)){
-      if(!input$additional && 
-         input$checkboxParadigm == "Bayesian" && 
-         (input$test %in% c("Sign", "Signed-Rank", "Corr-t-test")))
-        plot <- switch(input$test, 
-                       "Corr-t-test" = rNPBST::plotPosterior(reactive.test(), 
-                                                             names = c("A", "B"), 
-                                                             dataset = "dataset"),
-                       "Sign" = rNPBST::plotSimplex(reactive.test()$sample),
-                       "Signed-Rank" = rNPBST::plotSimplex(reactive.test()$sample))
+    if(ncol(df.reactive()) >= 2 &&
+       !input$additional && 
+       input$checkboxParadigm == "Bayesian" && 
+       input$test %in% c("Sign", "Signed-Rank", "Corr-t-test") &&
+       input$checkboxPlot){
+      
+      if (input$test == "Corr-t-test"){
+        
+        plot <- rNPBST::plotPosterior(reactive.test(), 
+                                      names = c(input$textFirstAlgorithm, 
+                                                input$textSecondAlgorithm), 
+                                      dataset = input$textDataset) 
+        return(plot)
+      }
+      else if (input$test == "Sign"){
+        plot <- rNPBST::plotSimplex(reactive.test()$sample) +
+          ggtitle("Sign test") +
+          labs(z = input$textFirstAlgorithm, x = input$textSecondAlgorithm)
+        print(plot)
+        return(NULL)
+      }
+      else if (input$test == "Signed-Rank"){
+        plot <- rNPBST::plotSimplex(reactive.test()$sample) +
+          ggtitle("Signed-Rank test") + 
+          labs(z = input$textFirstAlgorithm, x = input$textSecondAlgorithm)
+        print(plot)
+        return(NULL)
+      }
     }
-    return(plot)
   })
   output$downloadData <- downloadHandler(
     filename = function() {
