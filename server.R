@@ -105,7 +105,10 @@ apply.test.two.datasets <- function(df1, df2, paradigm, test, ...){
                     "Non-Parametric" = {
                       switch(test,
                              "GLRT-Multiple-Measures" = 
-                               rNPBST::multipleMeasuresGLRT(df1, df2))
+                               rNPBST::multipleMeasuresGLRT(df1, df2),
+                             "Page" = {
+                               rNPBST::page.test(df1, df2)
+                             })
                     },
                     "Bayesian" = {
                       switch(test,
@@ -145,12 +148,21 @@ server <- function(input, output,session) {
   # Read additional dataset
   df2.reactive <- function(){
     if(input$additional){
-      req(input$file2)
-      
-      df2 <- read.csv(input$file2$datapath,
-                      header = input$header2,
-                      sep = input$sep2)
-      return(df2)
+      if(!input$defaultdataset2){
+        df2 <- read.csv(input$file2$datapath,
+                       header = input$header2,
+                       sep = input$sep2)
+        return(df2)
+      }
+      else{
+        return(switch(input$default.file2,
+                      "results" = rNPBST::results,
+                      "results.knn" = rNPBST::results.knn,
+                      "results.lr" = rNPBST::results.lr,
+                      "results.nb" = rNPBST::results.nb,
+                      "results.nnet" = rNPBST::results.nnet,
+                      "results.rf" = rNPBST::results.rf))
+      }
     }
   }
   
@@ -169,7 +181,8 @@ server <- function(input, output,session) {
                          choices = c("Non-Parametric", "Bayesian"),
                          selected = "Non-Parametric")
       updated.list <- switch(input$checkboxParadigm,
-                             "Non-Parametric" = list("GLRT-Multiples Measures" = "GLRT-Multiple-Measures"),
+                             "Non-Parametric" = list("GLRT-Multiples Measures" = "GLRT-Multiple-Measures",
+                                                     "Page" = "Page"),
                              "Bayesian" =  list("Multiple Measures" = "Bayesian-Multiple-Measures"))
       updated.selected <- switch(input$checkboxParadigm,
                                  "Non-Parametric" = "GLRT-Multiple-Measures",
@@ -213,7 +226,8 @@ server <- function(input, output,session) {
     # Update available tests if two files
     if(input$additional){
       updated.list <- switch(input$checkboxParadigm,
-                             "Non-Parametric" = list("GLRT-Multiples Measures" = "GLRT-Multiple-Measures"),
+                             "Non-Parametric" = list("GLRT-Multiples Measures" = "GLRT-Multiple-Measures",
+                                                     "Page" = "Page"),
                              "Bayesian" =  list("Multiple Measures" = "Bayesian-Multiple-Measures"))
       updated.selected <- switch(input$checkboxParadigm,
                                  "Non-Parametric" = "GLRT-Multiple-Measures",
@@ -251,10 +265,11 @@ server <- function(input, output,session) {
   # Compute Test
   reactive.test <- reactive({
     if(ncol(df.reactive() >= 2)){
-      if(input$additional)
+      if(input$additional){
         test.result <- apply.test.two.datasets(df.reactive(), df2.reactive(), 
                                                input$checkboxParadigm, 
                                                input$test)
+      }
       else{
         test.result <- apply.test(df.reactive(), input$checkboxParadigm, input$test, 
                                   columnfirst = input$columnfirst, columnsecond = input$columnsecond)
@@ -307,4 +322,29 @@ server <- function(input, output,session) {
   output$tex.test.result <- renderText(rNPBST::htest2Tex(reactive.test()))
   output$table.test.result <- renderDataTable(format.table(reactive.test()))
   output$plot.test <- renderPlot(reactive.plot())
+  output$test.reference <- reactive({switch(input$checkboxParadigm,
+    "Parametric" ={
+      switch(input$test,
+             "ANOVA" = "Sheskin, D. J., Handbook of parametric and nonparametric statistical procedures (2003), : crc Press.",
+             "t-test" = "Sheskin, D. J., Handbook of parametric and nonparametric statistical procedures (2003), : crc Press.")
+      },                              
+    "Non-Parametric" = {
+      switch (input$test,
+              "Wilcoxon" = "Sheskin, D. J., Handbook of parametric and nonparametric statistical procedures (2003), : crc Press.", 
+              "WilcoxonRS" = "Sheskin, D. J., Handbook of parametric and nonparametric statistical procedures (2003), : crc Press.",
+              "Friedman" = "Sheskin, D. J., Handbook of parametric and nonparametric statistical procedures (2003), : crc Press.", 
+              "FriedmanAR" = "Sheskin, D. J., Handbook of parametric and nonparametric statistical procedures (2003), : crc Press.",
+              "Iman-Davenport" = "Sheskin, D. J., Handbook of parametric and nonparametric statistical procedures (2003), : crc Press.", 
+              "Quade" = "Sheskin, D. J., Handbook of parametric and nonparametric statistical procedures (2003), : crc Press.",
+              "Page" = "Sheskin, D. J., Handbook of parametric and nonparametric statistical procedures (2003), : crc Press.",
+              "GLRT-Multiples-Measures" = "de Campos, C. P., & Benavoli, A., Joint Analysis of Multiple Algorithms and Performance Measures, New Generation Computing, 35(1), 69–86 (2016).  http://dx.doi.org/10.1007/s00354-016-0005-8")
+    },
+    "Bayesian" = {
+      switch (input$test,
+              "BayesFriedman" = "Benavoli, A., Corani, G., Mangili, F., & Zaffalon, M., A Bayesian nonparametric procedure for comparing algorithms, In , Proceedings of the 32nd International Conference on Machine Learning, ICML 2015, Lille, France, 6-11 July 2015 (pp. 1264–1272) (2015). : .", 
+              "Sign" = "Benavoli, A., Corani, G., Dem\v sar, Janez, & Zaffalon, M., Time for a Change: a Tutorial for Comparing Multiple Classifiers Through Bayesian Analysis, Journal of Machine Learning Research, 18(77), 1–36 (2017). ",
+              "Signed-Rank" = "Benavoli, A., Corani, G., Dem\v sar, Janez, & Zaffalon, M., Time for a Change: a Tutorial for Comparing Multiple Classifiers Through Bayesian Analysis, Journal of Machine Learning Research, 18(77), 1–36 (2017). ",
+              "Corr-t-test" = "Corani, G., & Benavoli, A., A Bayesian approach for comparing cross-validated algorithms on multiple data sets, Machine Learning, 100(2-3), 285–304 (2015).",
+              "Bayesian-Multiple-Measures" = "de Campos, C. P., & Benavoli, A., Joint Analysis of Multiple Algorithms and Performance Measures, New Generation Computing, 35(1), 69–86 (2016)")
+    })})
 }
