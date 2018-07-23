@@ -1,8 +1,10 @@
 require(shiny)
+require(shinydashboard)
 require(ggplot2)
 require(reshape2)
 require(devtools)
 require(ggtern)
+require(scmamp)
 
 if("rNPBST" %in% rownames(installed.packages())){
   library(rNPBST)
@@ -42,7 +44,7 @@ format.table <- function(l){
   return(table)
 }
 
-apply.parametric.test <- function(df, test, columnfirst = 0, columnsecond = 0){
+apply.parametric.test <- function(df, test, columnfirst = 0, columnsecond = 0, ...){
   results <- switch (test,
           "ANOVA" = {
             long.df <- reshape2::melt(df)
@@ -62,21 +64,55 @@ apply.parametric.test <- function(df, test, columnfirst = 0, columnsecond = 0){
   return(results)
 }
 
-apply.non.parametric.test <- function(df, test, columnfirst = 0, columnsecond = 0){
-  results <- switch (test,
-                     "Wilcoxon" = rNPBST::wilcoxon.test(df[,c(columnfirst,columnsecond)]),
-                     "WilcoxonRS" = rNPBST::wilcoxonRankSum.test(df[,c(columnfirst,columnsecond)]),
-                     "Friedman" = rNPBST::friedman.test(df),
-                     "FriedmanAR" = rNPBST::friedmanAR.test(df),
-                     "Iman-Davenport" = rNPBST::imanDavenport.test(df),
-                     "Quade" = quade.test(as.matrix(df,
-                                                    dimnames = list(as.character(1:nrow(df)),
-                                                                    LETTERS[1:ncol(df)]))))
+apply.non.parametric.test <- function(df, test, columnfirst = 0, columnsecond = 0,
+                                      post.hoc = FALSE, post.hoc.method, 
+                                      post.hoc.comparison, ...){
+  
+  if(post.hoc & test %in% c("Friedman", "FriedmanAR", "Quade")){
+    
+    if(post.hoc.comparison == "All vs All"){
+      results <- switch (test,
+                         "Friedman" = scmamp::friedmanPost(df),
+                         "FriedmanAR" = scmamp::friedmanAlignedRanksPost(df),
+                         "Quade" = scmamp::quadePost(df))
+      if(post.hoc.method %in% c("Li","Holland","Rom")){
+        results[lower.tri(results)] <- NA
+      }
+      results <- switch(post.hoc.method,
+                        "Bergmann-Hommel" = scmamp::adjustBergmannHommel(results),
+                        "Shaffer" = scmamp::adjustShaffer(results),
+                        "Li" = scmamp::adjustLi(results), 
+                        "Holland" = scmamp::adjustHolland(results), 
+                        "Rom" = scmamp::adjustRom(results))
+    }
+    else{
+      results <- switch (test,
+                         "Friedman" = scmamp::friedmanPost(df, ...),
+                         "FriedmanAR" = scmamp::friedmanAlignedRanksPost(df, ...),
+                         "Quade" = scmamp::quadePost(df, ...))
+      results <- switch(post.hoc.method,
+                        "Li" = scmamp::adjustLi(results), 
+                        "Holland" = scmamp::adjustHolland(results), 
+                        "Rom" = scmamp::adjustRom(results))
+    }
+  }
+  else{
+    results <- switch (test,
+                       "Wilcoxon" = rNPBST::wilcoxon.test(df[,c(columnfirst,columnsecond)]),
+                       "WilcoxonRS" = rNPBST::wilcoxonRankSum.test(df[,c(columnfirst,columnsecond)]),
+                       "Friedman" = rNPBST::friedman.test(df),
+                       "FriedmanAR" = rNPBST::friedmanAR.test(df),
+                       "Iman-Davenport" = rNPBST::imanDavenport.test(df),
+                       "Quade" = quade.test(as.matrix(df,
+                                                      dimnames = list(as.character(1:nrow(df)),
+                                                                      LETTERS[1:ncol(df)]))))
+  }
+  
   return(results)
 }
 
 
-apply.bayesian.test <- function(df, test, columnfirst = 0, columnsecond = 0){
+apply.bayesian.test <- function(df, test, columnfirst = 0, columnsecond = 0, ...){
   results <- switch (test,
           "BayesFriedman" = rNPBST::bayesianFriedman.test(df, imprecise = T),
           "Sign" = rNPBST::bayesianSign.test(df[ ,columnfirst], df[ ,columnsecond]),
@@ -130,17 +166,17 @@ server <- function(input, output,session) {
       df <- read.csv(input$file1$datapath,
                      header = input$header,
                      sep = input$sep)
-      return(df)
     }
     else{
-      return(switch(input$default.file1,
+      df <- switch(input$default.file1,
              "results" = rNPBST::results,
              "results.knn" = rNPBST::results.knn,
              "results.lr" = rNPBST::results.lr,
              "results.nb" = rNPBST::results.nb,
              "results.nnet" = rNPBST::results.nnet,
-             "results.rf" = rNPBST::results.rf))
+             "results.rf" = rNPBST::results.rf)
     }
+    return(df)
   }
   # Read additional dataset
   df2.reactive <- function(){
@@ -158,10 +194,22 @@ server <- function(input, output,session) {
   output$contents <- renderDataTable(df.reactive()) 
   output$contents.table2 <- renderDataTable(df2.reactive()) 
   
-  # Update tests
-  observeEvent(input$additional,{
+  # Update names for plot
+  observeEvent(input$columnfirst,{
+    updateTextInput(session, "textFirstAlgorithm", "Name First Algorithm", colnames(df.reactive())[input$columnfirst])
+  })
+  observeEvent(input$columnsecond,{
+    updateTextInput(session, "textSecondAlgorithm", "Name Second Algorithm", colnames(df.reactive())[input$columnsecond])
+  })
+  observeEvent(input$default.file1,{
+    updateTextInput(session, "textDataset", "Name Dataset", deparse(input$default.file1))
     updateNumericInput(session, "columnfirst", value = 1, min = 1, max = ncol(df.reactive()))
     updateNumericInput(session, "columnsecond", value =  2, min = 1, max = ncol(df.reactive()))
+  })
+      
+  
+  # Update tests
+  observeEvent(input$additional,{
     # Update available tests if two files
     if(input$additional){
       updateRadioButtons(session, inputId =  'checkboxParadigm', 
@@ -178,7 +226,7 @@ server <- function(input, output,session) {
                         choices = updated.list, selected = updated.selected)
     }
     else{
-      updateRadioButtons(session, inputId =  'checkboxParadigm', 
+      updateRadioButtons(session, inputId = 'checkboxParadigm', 
                          label =  "Select Kind of test",
                          choices = c("Parametric","Non-Parametric", "Bayesian"),
                          selected = "Parametric")
@@ -207,9 +255,12 @@ server <- function(input, output,session) {
     }
   })
   
+  
   observeEvent(input$checkboxParadigm,{
     updateNumericInput(session, "columnfirst", value = 1, min = 1, max = ncol(df.reactive()))
     updateNumericInput(session, "columnsecond", value =  2, min = 1, max = ncol(df.reactive()))
+    updateNumericInput(session, "controlalgorithm", value = 1, min = 1, max = ncol(df.reactive()))
+    
     # Update available tests if two files
     if(input$additional){
       updated.list <- switch(input$checkboxParadigm,
@@ -247,6 +298,24 @@ server <- function(input, output,session) {
     }
   })
   
+  # Update post-hoc test
+  observeEvent(input$posthoccomparison,{
+      updated.list <- switch(input$posthoccomparison,
+                             "One vs All" = list("Li" = "Li",
+                                                 "Holland" = "Holland", 
+                                                 "Rom" = "Rom"),
+                             "All vs All" = list("Shaffer",
+                                                 "Bergmann-Hommel",
+                                                 "Li" = "Li", 
+                                                 "Holland" = "Holland", 
+                                                 "Rom" = "Rom"))
+      updated.selected <- switch(input$posthoccomparison,
+                                 "One vs All" = "Li",
+                                 "All vs All" = "Shaffer")
+      updateSelectInput(session, inputId =  'posthocmethod', label = "Post-hoc method",  
+                        choices = updated.list, selected = updated.selected)
+  })
+  
   
   # Compute Test
   reactive.test <- reactive({
@@ -257,7 +326,11 @@ server <- function(input, output,session) {
                                                input$test)
       else{
         test.result <- apply.test(df.reactive(), input$checkboxParadigm, input$test, 
-                                  columnfirst = input$columnfirst, columnsecond = input$columnsecond)
+                                  columnfirst = input$columnfirst, columnsecond = input$columnsecond,
+                                  post.hoc = input$PostHoc, 
+                                  post.hoc.method = input$posthocmethod,
+                                  post.hoc.comparison = input$posthoccomparison,
+                                  control = input$controlalgorithm)
       }
     }
     return(test.result)
@@ -268,8 +341,7 @@ server <- function(input, output,session) {
     if(ncol(df.reactive()) >= 2 &&
        !input$additional && 
        input$checkboxParadigm == "Bayesian" && 
-       input$test %in% c("Sign", "Signed-Rank", "Corr-t-test") &&
-       input$checkboxPlot){
+       input$test %in% c("Sign", "Signed-Rank", "Corr-t-test")){
       
       if (input$test == "Corr-t-test"){
         
@@ -303,8 +375,31 @@ server <- function(input, output,session) {
       ggplot2::ggsave(plot = renderPlot(reactive.plot()), filename = con)
     }
   )
+  
+  reactive.table.output <- reactive({
+    if(input$checkboxParadigm ==  "Non-Parametric" && 
+       input$test %in% c("Friedman", "FriedmanAR", "Quade") &&
+       input$PostHoc){
+      reactive.test()
+    }
+    else{
+      format.table(reactive.test())
+    }
+  })
+  
+  reactive.text.output <- reactive({
+    if(input$checkboxParadigm ==  "Non-Parametric" && 
+       input$test %in% c("Friedman", "FriedmanAR", "Quade") &&
+       input$PostHoc){
+      print(xtable::xtable(reactive.test(), caption = "Post-hoc test",
+                           label = "tab:post-hoc"))
+    }
+    else{
+      rNPBST::htest2Tex(reactive.test())
+    }
+  })
 
-  output$tex.test.result <- renderText(rNPBST::htest2Tex(reactive.test()))
-  output$table.test.result <- renderDataTable(format.table(reactive.test()))
+  output$table.test.result <- renderDataTable(reactive.table.output())
+  output$tex.test.result <- renderText(reactive.text.output())
   output$plot.test <- renderPlot(reactive.plot())
 }

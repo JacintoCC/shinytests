@@ -9,16 +9,11 @@
 
 
 # Define UI for application that draws a histogram
-ui <- fluidPage(
-  tags$head(
-    tags$style(HTML("hr {border-top: 1px solid #000000;}"))
+ui <- dashboardPage(
+  dashboardHeader(
+    title = "Statistical Tests"
   ),
-  titlePanel(title = "Statistical Tests"),
-  sidebarLayout(
-    
-    # Sidebar panel for inputs ----
-    sidebarPanel(      
-      
+  dashboardSidebar(
       checkboxInput("defaultdataset", "Default datasets", TRUE),
       # DEFAULT DATASET
       conditionalPanel(
@@ -50,8 +45,13 @@ ui <- fluidPage(
                                  Space = " "),
                      selected = ",")
       ),
-      numericInput("columnfirst", "First column", 1, min = 1, max = 10, step = 1),
-      numericInput("columnsecond", "Second column", 2, min = 1, max = 10, step = 1),
+      conditionalPanel(
+        condition = "(input.checkboxParadigm == \"Parametric\" && input.test == \"t-test\") || 
+        (input.checkboxParadigm == \"Non-Parametric\" && (input.test == \"Wilcoxon\" || input.test == \"WilcoxonRS\")) ||
+        (input.checkboxParadigm == \"Bayesian\" && (input.test == \"Sign\" || input.test == \"Signed-Rank\"))",
+        numericInput("columnfirst", "First column", 1, min = 1, max = 10, step = 1),
+        numericInput("columnsecond", "Second column", 2, min = 1, max = 10, step = 1)
+      ),
       hr(),
       checkboxInput("additional", "Multiple files", FALSE),
       conditionalPanel(
@@ -76,43 +76,59 @@ ui <- fluidPage(
       radioButtons("checkboxParadigm", "Select Kind of test",
                    choices = c("Parametric", "Non-Parametric", "Bayesian"),
                    selected = "Parametric"),
-      fluidRow(selectInput('test', "Test", 
-                           choices = list("None" = 0)),
-               conditionalPanel("(!input.additional) &&  (input.checkboxParadigm == \"Bayesian\") && (input.test == \"Sign\" || input.test == \"Signed-Rank\"  || input.test == \"Corr-t-test\")",
-                                checkboxInput("checkboxPlot", "Plot", FALSE),
-                                textInput("textDataset", "Name Dataset", "Dataset"),
-                                textInput("textFirstAlgorithm", "Name First Algorithm", "1st Alg."),
-                                textInput("textSecondAlgorithm", "Name Second Algorithm", "2nd Alg."),
-                                downloadLink('downloadPlot', 'Download'))
-      )
+      selectInput('test', "Test", 
+                  choices = list("None" = 0)),
+      conditionalPanel(
+        condition = "input.checkboxParadigm ==  \"Non-Parametric\" && input.test == \"Friedman\" || input.test == \"FriedmanAR\" || input.test == \"Quade\"",
+        checkboxInput("PostHoc", "Test Post-hoc", FALSE),
+        conditionalPanel(
+          condition = "input.PostHoc",
+          radioButtons("posthoccomparison", "Comparison",
+                       choices = c(OneVersusAll = "One vs All",
+                                   AllVersusAll = "All vs All"),
+                       selected = "One vs All"),
+          conditionalPanel("input.posthoccomparison == \"One vs All\"",
+                           numericInput("controlalgorithm", "Control Algorithm", 
+                                        1, min = 1, max = 10, step = 1)),
+          selectInput("posthocmethod", "Post-hoc method",
+                      choices = list("None" = 0)
+        )
+      ))
     ),
     
-    # Main panel for displaying outputs ----
-    mainPanel(
-      tabsetPanel(type = "tabs",
-                  tabPanel("Show input dataset", 
-                           h3("Dataset"),
-                           column(12, dataTableOutput('contents')),
-                           fluidRow(conditionalPanel(
-                             condition = "input.additional",
-                             hr(),
-                             h3("Additional dataset"),
-                             column(12, dataTableOutput('contents.table2'))
-                           ))),
-                  tabPanel("Test results",
-                           h4("Table Output"),
-                           dataTableOutput("table.test.result"),
-                           hr(),
-                           h4("Latex Output"),
-                           verbatimTextOutput("tex.test.result"),
-                           conditionalPanel("(!input.additional) &&  (input.checkboxParadigm == \"Bayesian\") && (input.checkboxPlot)",
-                                            hr(),
-                                            h4("Plot"),
-                                            plotOutput("plot.test"))
-                           )
-    ))
-))
-
-
-
-
+    ###
+    #    Main panel for displaying outputs
+    ###
+  dashboardBody(
+    tabBox(id = "body",
+           width = 12, 
+           tabPanel("Show input dataset",  
+                    h3("Dataset"),
+                    dataTableOutput('contents'),
+                    conditionalPanel(
+                      condition = "input.additional", hr(), h3("Additional dataset"),
+                      dataTableOutput('contents.table2')
+                    )),
+           tabPanel("Test results",
+                    h4("Table Output"),
+                    dataTableOutput("table.test.result"),
+                    hr(),
+                    h4("Latex Output"),
+                    verbatimTextOutput("tex.test.result")
+           ),
+           tabPanel("Plot Output",
+                    conditionalPanel(
+                      condition = "(!input.additional) &&  (input.checkboxParadigm == \"Bayesian\") && (input.test == \"Sign\" || input.test == \"Signed-Rank\" ||input.test == \"Corr-t-test\")",
+                      textInput("textDataset", "Name Dataset", "Dataset"),
+                      textInput("textFirstAlgorithm", "Name First Algorithm", "1st Alg."),
+                      textInput("textSecondAlgorithm", "Name Second Algorithm", "2nd Alg."),
+                      # downloadLink('downloadPlot', 'Download'),
+                      plotOutput("plot.test")),
+                    conditionalPanel(
+                      condition = "!((!input.additional) &&  (input.checkboxParadigm == \"Bayesian\") && (input.test == \"Sign\" || input.test == \"Signed-Rank\" ||input.test == \"Corr-t-test\"))",
+                      h5("Plot output not available for the selected test")
+                    )
+           )
+    )
+  )
+)
