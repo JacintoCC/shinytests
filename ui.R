@@ -53,9 +53,23 @@ ui <- dashboardPage(
         numericInput("columnsecond", "Second column", 2, min = 1, max = 10, step = 1)
       ),
       hr(),
+      # ADDITIONAL FILE
       checkboxInput("additional", "Multiple files", FALSE),
       conditionalPanel(
         condition = "input.additional",
+        checkboxInput("defaultdataset2", "Default datasets", TRUE),
+        conditionalPanel(
+          condition = "(input.defaultdataset2)",
+          selectInput('default.file2', "Dataset", 
+                      choices = list("results" = "results",
+                                     "results.knn" = "results.knn",
+                                     "results.lr" = "results.lr",
+                                     "results.nb" = "results.nb",
+                                     "results.nnet" = "results.nnet",
+                                     "results.rf" = "results.rf"))
+        ),
+        conditionalPanel(condition = "(!input.defaultdataset2)",
+        
         fileInput("file2", "Choose additional CSV file",
                   multiple = TRUE,
                   accept = c("text/csv",
@@ -71,6 +85,7 @@ ui <- dashboardPage(
                                  Tab = "\t",
                                  Space = " "),
                      selected = ",")
+        )
       ),
       hr(),
       radioButtons("checkboxParadigm", "Select Kind of test",
@@ -96,6 +111,7 @@ ui <- dashboardPage(
       ))
     ),
     
+<<<<<<< HEAD
     ###
     #    Main panel for displaying outputs
     ###
@@ -114,7 +130,10 @@ ui <- dashboardPage(
                     dataTableOutput("table.test.result"),
                     hr(),
                     h4("Latex Output"),
-                    verbatimTextOutput("tex.test.result")
+                    verbatimTextOutput("tex.test.result"),
+                    h4("References"),
+                    textOutput("test.reference")
+
            ),
            tabPanel("Plot Output",
                     conditionalPanel(
