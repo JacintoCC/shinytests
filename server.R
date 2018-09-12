@@ -1,5 +1,5 @@
 require(shiny)
-require(shinydashboard)
+
 require(ggplot2)
 require(reshape2)
 require(devtools)
@@ -13,12 +13,18 @@ if("rNPBST" %in% rownames(installed.packages())){
 }
 
 format.table <- function(l){
+
   if("sample" %in% names(l)){
     l$sample <- NULL
   }
   if("dist" %in% names(l)){
     l$dist <- NULL
   }
+  if("post.dist.lower" %in% names(l)){
+    l$post.dist.lower <- NULL
+    l$post.dist.upper <- NULL
+  }
+  
   names.l <- names(l)
   max.length <- max(sapply(l, length))
   which.vector <- sapply(l, length) > 1
@@ -117,7 +123,8 @@ apply.bayesian.test <- function(df, test, columnfirst = 0, columnsecond = 0, ...
           "BayesFriedman" = rNPBST::bayesianFriedman.test(df, imprecise = T),
           "Sign" = rNPBST::bayesianSign.test(df[ ,columnfirst], df[ ,columnsecond]),
           "Signed-Rank" = rNPBST::bayesianSignedRank.test(df[ ,columnfirst], df[ ,columnsecond]),
-          "Corr-t-test" = rNPBST::bayesianCorrelatedT.test(df[ ,columnfirst], df[ ,columnsecond]))
+          "Corr-t-test" = rNPBST::bayesianCorrelatedT.test(df[ ,columnfirst], df[ ,columnsecond]),
+          "IDP-Wilcoxon" = rNPBST::bayesian.imprecise(df[ ,columnfirst], df[ ,columnsecond]))
   return(results)
 }
 
@@ -257,7 +264,8 @@ server <- function(input, output,session) {
                                list("Friedman" = "Friedman", 
                                     "Sign test" = "Sign",
                                     "Signed-rank" = "Signed-Rank",
-                                    "Correlated t-test" = "Corr-t-test")
+                                    "Correlated t-test" = "Corr-t-test",
+                                    "IDP-Wilcoxon" = "IDP-Wilcoxon")
                              })
       updated.selected <- switch(input$checkboxParadigm,
                                  "Parametric" = "ANOVA",
@@ -301,7 +309,8 @@ server <- function(input, output,session) {
                                list("Friedman" = "BayesFriedman", 
                                     "Sign test" = "Sign",
                                     "Signed-rank" = "Signed-Rank",
-                                    "Correlated t-test" = "Corr-t-test")
+                                    "Correlated t-test" = "Corr-t-test",
+                                    "IDP-Wilcoxon" = "IDP-Wilcoxon")
                              })
       updated.selected <- switch(input$checkboxParadigm,
                                  "Parametric" = "ANOVA",
@@ -356,7 +365,7 @@ server <- function(input, output,session) {
     if(ncol(df.reactive()) >= 2 &&
        !input$additional && 
        input$checkboxParadigm == "Bayesian" && 
-       input$test %in% c("Sign", "Signed-Rank", "Corr-t-test")){
+       input$test %in% c("Sign", "Signed-Rank", "Corr-t-test", "IDP-Wilcoxon")){
       
       if (input$test == "Corr-t-test"){
         
@@ -379,6 +388,10 @@ server <- function(input, output,session) {
           labs(z = input$textFirstAlgorithm, x = input$textSecondAlgorithm)
         print(plot)
         return(NULL)
+      }
+      else if (input$test == "IDP-Wilcoxon"){
+        plot <- rNPBST::plotIDP(reactive.test()$post.dist.lower, reactive.test()$post.dist.upper)
+        return(plot)
       }
     }
   })
@@ -440,6 +453,7 @@ server <- function(input, output,session) {
               "Sign" = "Benavoli, A., Corani, G., Dem\v sar, Janez, & Zaffalon, M., Time for a Change: a Tutorial for Comparing Multiple Classifiers Through Bayesian Analysis, Journal of Machine Learning Research, 18(77), 1–36 (2017). ",
               "Signed-Rank" = "Benavoli, A., Corani, G., Dem\v sar, Janez, & Zaffalon, M., Time for a Change: a Tutorial for Comparing Multiple Classifiers Through Bayesian Analysis, Journal of Machine Learning Research, 18(77), 1–36 (2017). ",
               "Corr-t-test" = "Corani, G., & Benavoli, A., A Bayesian approach for comparing cross-validated algorithms on multiple data sets, Machine Learning, 100(2-3), 285–304 (2015).",
-              "Bayesian-Multiple-Measures" = "de Campos, C. P., & Benavoli, A., Joint Analysis of Multiple Algorithms and Performance Measures, New Generation Computing, 35(1), 69–86 (2016)")
-    })})
+              "Bayesian-Multiple-Measures" = "de Campos, C. P., & Benavoli, A., Joint Analysis of Multiple Algorithms and Performance Measures, New Generation Computing, 35(1), 69–86 (2016)",
+              "IDP-Wilcoxon" = "Benavoli, A., Mangili, F., Ruggeri, F., & Zaffalon, M. (2015). Imprecise Dirichlet Process With Application to the Hypothesis Test on the Probability That X < Y. Journal of Statistical Theory and Practice, 9(3), 658–684. http://dx.doi.org/10.1080/15598608.2014.985997")
+      })})
 }

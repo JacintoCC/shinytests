@@ -6,10 +6,10 @@
 #
 #    http://shiny.rstudio.com/
 #
-
+require(shinydashboard)
 
 # Define UI for application that draws a histogram
-ui <- dashboardPage(
+ui <- shinydashboard::dashboardPage(
   dashboardHeader(
     title = "Statistical Tests"
   ),
@@ -48,7 +48,7 @@ ui <- dashboardPage(
       conditionalPanel(
         condition = "(input.checkboxParadigm == \"Parametric\" && input.test == \"t-test\") || 
         (input.checkboxParadigm == \"Non-Parametric\" && (input.test == \"Wilcoxon\" || input.test == \"WilcoxonRS\")) ||
-        (input.checkboxParadigm == \"Bayesian\" && (input.test == \"Sign\" || input.test == \"Signed-Rank\"))",
+        (input.checkboxParadigm == \"Bayesian\" && (input.test == \"Sign\" || input.test == \"Signed-Rank\" || input.test == \"IDP-Wilcoxon\"))",
         numericInput("columnfirst", "First column", 1, min = 1, max = 10, step = 1),
         numericInput("columnsecond", "Second column", 2, min = 1, max = 10, step = 1)
       ),
@@ -93,6 +93,7 @@ ui <- dashboardPage(
                    selected = "Parametric"),
       selectInput('test', "Test", 
                   choices = list("None" = 0)),
+      # CONDITIONAL PANEL POST-HOC
       conditionalPanel(
         condition = "input.checkboxParadigm ==  \"Non-Parametric\" && input.test == \"Friedman\" || input.test == \"FriedmanAR\" || input.test == \"Quade\"",
         checkboxInput("PostHoc", "Test Post-hoc", FALSE),
@@ -111,7 +112,6 @@ ui <- dashboardPage(
       ))
     ),
     
-<<<<<<< HEAD
     ###
     #    Main panel for displaying outputs
     ###
@@ -137,14 +137,14 @@ ui <- dashboardPage(
            ),
            tabPanel("Plot Output",
                     conditionalPanel(
-                      condition = "(!input.additional) &&  (input.checkboxParadigm == \"Bayesian\") && (input.test == \"Sign\" || input.test == \"Signed-Rank\" ||input.test == \"Corr-t-test\")",
+                      condition = "(!input.additional) &&  (input.checkboxParadigm == \"Bayesian\") && (input.test == \"Sign\" || input.test == \"Signed-Rank\" || input.test == \"Corr-t-test\" || input.test == \"IDP-Wilcoxon\")",
                       textInput("textDataset", "Name Dataset", "Dataset"),
                       textInput("textFirstAlgorithm", "Name First Algorithm", "1st Alg."),
                       textInput("textSecondAlgorithm", "Name Second Algorithm", "2nd Alg."),
                       # downloadLink('downloadPlot', 'Download'),
                       plotOutput("plot.test")),
                     conditionalPanel(
-                      condition = "!((!input.additional) &&  (input.checkboxParadigm == \"Bayesian\") && (input.test == \"Sign\" || input.test == \"Signed-Rank\" ||input.test == \"Corr-t-test\"))",
+                      condition = "!((!input.additional) &&  (input.checkboxParadigm == \"Bayesian\") && (input.test == \"Sign\" || input.test == \"Signed-Rank\" || input.test == \"Corr-t-test\" || input.test == \"IDP-Wilcoxon\"))",
                       h5("Plot output not available for the selected test")
                     )
            )
