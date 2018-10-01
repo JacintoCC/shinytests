@@ -419,7 +419,7 @@ server <- function(input, output,session) {
     if(input$checkboxParadigm ==  "Non-Parametric" && 
        input$test %in% c("Friedman", "FriedmanAR", "Quade") &&
        input$PostHoc){
-      print(xtable::xtable(reactive.test(), caption = "Post-hoc test",
+       toString(xtable::xtable(reactive.test(), caption = "Post-hoc test",
                            label = "tab:post-hoc"))
     }
     else{
@@ -449,7 +449,7 @@ server <- function(input, output,session) {
     },
     "Bayesian" = {
       switch (input$test,
-              "BayesFriedman" = "Benavoli, A., Corani, G., Mangili, F., & Zaffalon, M., A Bayesian nonparametric procedure for comparing algorithms, In , Proceedings of the 32nd International Conference on Machine Learning, ICML 2015, Lille, France, 6-11 July 2015 (pp. 1264–1272) (2015). : .", 
+              "BayesFriedman" = "Benavoli, A., Corani, G., Mangili, F., & Zaffalon, M., A Bayesian nonparametric procedure for comparing algorithms, In , Proceedings of the 32nd International Conference on Machine Learning, ICML 2015, Lille, France, 6-11 July 2015 (pp. 1264–1272) (2015).", 
               "Sign" = "Benavoli, A., Corani, G., Dem\v sar, Janez, & Zaffalon, M., Time for a Change: a Tutorial for Comparing Multiple Classifiers Through Bayesian Analysis, Journal of Machine Learning Research, 18(77), 1–36 (2017). ",
               "Signed-Rank" = "Benavoli, A., Corani, G., Dem\v sar, Janez, & Zaffalon, M., Time for a Change: a Tutorial for Comparing Multiple Classifiers Through Bayesian Analysis, Journal of Machine Learning Research, 18(77), 1–36 (2017). ",
               "Corr-t-test" = "Corani, G., & Benavoli, A., A Bayesian approach for comparing cross-validated algorithms on multiple data sets, Machine Learning, 100(2-3), 285–304 (2015).",
