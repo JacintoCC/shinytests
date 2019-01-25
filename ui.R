@@ -1,12 +1,8 @@
 #
 # This is a Shiny web application. You can run the application by clicking
 # the 'Run App' button above.
-#
-# Find out more about building applications with Shiny here:
-#
-#    http://shiny.rstudio.com/
-#
 require(shinydashboard)
+source('tabs.R')
 
 # Define UI for application that draws a histogram
 ui <- shinydashboard::dashboardPage(
@@ -15,6 +11,7 @@ ui <- shinydashboard::dashboardPage(
   ),
   dashboardSidebar(
       checkboxInput("defaultdataset", "Default datasets", TRUE),
+      checkboxInput("checkwideformat", "Wide Format", TRUE),
       # DEFAULT DATASET
       conditionalPanel(
         condition = "(input.defaultdataset)",
@@ -26,9 +23,18 @@ ui <- shinydashboard::dashboardPage(
                                    "results.nnet" = "results.nnet",
                                    "results.rf" = "results.rf"))
       ),
+      conditionalPanel(
+        condition = "(!input.checkwideformat)",
+        selectInput("selectComparisonVariable", "Select Comparison Factor Variable", choices = NULL),
+        selectInput("selectResultVariable", "Select Result Variable", choices = NULL),
+        selectInput("selectScenarioVariable", "Select Scenario Factor Variable", choices = NULL),
+        conditionalPanel("(input.selectScenarioVariable !=\"None\")",
+                         selectInput("selectScenarioValue", "Select Scenario Value", choices = NULL)),
+        checkboxGroupInput("checkBlockingVariable", "Select Blocking Variable")
+      ),
       # CUSTOM FILE
       conditionalPanel(
-        condition = "(!input.defaultdataset)",
+        condition = "(!input.defaultdataset && !input.checkboxwide)",
         fileInput("file1", "Choose main CSV file",
                   multiple = TRUE,
                   accept = c("text/csv",
@@ -46,15 +52,17 @@ ui <- shinydashboard::dashboardPage(
                      selected = ",")
       ),
       conditionalPanel(
-        condition = "(input.checkboxParadigm == \"Parametric\" && input.test == \"t-test\") || 
-        (input.checkboxParadigm == \"Non-Parametric\" && (input.test == \"Wilcoxon\" || input.test == \"WilcoxonRS\")) ||
-        (input.checkboxParadigm == \"Bayesian\" && (input.test == \"Sign\" || input.test == \"Signed-Rank\" || input.test == \"IDP-Wilcoxon\"))",
-        numericInput("columnfirst", "First column", 1, min = 1, max = 10, step = 1),
-        numericInput("columnsecond", "Second column", 2, min = 1, max = 10, step = 1)
+        # condition = "(input.pair == \"Parametric\" && input.test == \"t-test\") || 
+        # (input.checkboxParadigm == \"Non-Parametric\" && (input.test == \"Wilcoxon\" || input.test == \"WilcoxonRS\")) ||
+        # (input.checkboxParadigm == \"Bayesian\" && (input.test == \"Corr-t-test\" || input.test == \"Sign\" || input.test == \"Signed-Rank\" || input.test == \"IDP-Wilcoxon\"))",
+        condition = "output.paircomparisontest",
+        selectInput("firstCompGroup", "First Comparison Group", choices = NULL, selected = NULL),
+        selectInput("secondCompGroup", "Second Comparison Group",choices = NULL, selected = NULL)
       ),
-      hr(),
       # ADDITIONAL FILE
-      checkboxInput("additional", "Multiple files", FALSE),
+      conditionalPanel(condition = "(input.checkwideformat)",
+                       hr(),
+                       checkboxInput("additional", "Multiple files", FALSE)),
       conditionalPanel(
         condition = "input.additional",
         checkboxInput("defaultdataset2", "Default datasets", TRUE),
@@ -104,8 +112,7 @@ ui <- shinydashboard::dashboardPage(
                                    AllVersusAll = "All vs All"),
                        selected = "One vs All"),
           conditionalPanel("input.posthoccomparison == \"One vs All\"",
-                           numericInput("controlalgorithm", "Control Algorithm", 
-                                        1, min = 1, max = 10, step = 1)),
+                           selectInput("controlalgorithm", "Control Algorithm", choices = NULL, selected = NULL)),
           selectInput("posthocmethod", "Post-hoc method",
                       choices = list("None" = 0)
         )
@@ -118,36 +125,10 @@ ui <- shinydashboard::dashboardPage(
   dashboardBody(
     tabBox(id = "body",
            width = 12, 
-           tabPanel("Show input dataset",  
-                    h3("Dataset"),
-                    dataTableOutput('contents'),
-                    conditionalPanel(
-                      condition = "input.additional", hr(), h3("Additional dataset"),
-                      dataTableOutput('contents.table2')
-                    )),
-           tabPanel("Test results",
-                    h4("Table Output"),
-                    dataTableOutput("table.test.result"),
-                    hr(),
-                    h4("Latex Output"),
-                    verbatimTextOutput("tex.test.result"),
-                    h4("References"),
-                    textOutput("test.reference")
-
-           ),
-           tabPanel("Plot Output",
-                    conditionalPanel(
-                      condition = "(!input.additional) &&  (input.checkboxParadigm == \"Bayesian\") && (input.test == \"Sign\" || input.test == \"Signed-Rank\" || input.test == \"Corr-t-test\" || input.test == \"IDP-Wilcoxon\")",
-                      textInput("textDataset", "Name Dataset", "Dataset"),
-                      textInput("textFirstAlgorithm", "Name First Algorithm", "1st Alg."),
-                      textInput("textSecondAlgorithm", "Name Second Algorithm", "2nd Alg."),
-                      # downloadLink('downloadPlot', 'Download'),
-                      plotOutput("plot.test")),
-                    conditionalPanel(
-                      condition = "!((!input.additional) &&  (input.checkboxParadigm == \"Bayesian\") && (input.test == \"Sign\" || input.test == \"Signed-Rank\" || input.test == \"Corr-t-test\" || input.test == \"IDP-Wilcoxon\"))",
-                      h5("Plot output not available for the selected test")
-                    )
-           )
+           tab.dataset,
+           tab.result, 
+           tab.plot
+           
     )
   )
 )
