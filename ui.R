@@ -1,9 +1,3 @@
-#
-# This is a Shiny web application. You can run the application by clicking
-# the 'Run App' button above.
-require(shinydashboard)
-source('tabs.R')
-
 # Define UI for application that draws a histogram
 ui <- shinydashboard::dashboardPage(
   dashboardHeader(

@@ -1,14 +1,14 @@
-require(shiny)
+#  List of required packages 
+list.of.packages <- c("ggplot2","reshape2","devtools","ggtern","scmamp","dplyr","shinydashboard")
 
-require(ggplot2)
-require(reshape2)
-require(devtools)
-require(ggtern)
-require(scmamp)
-require(dplyr)
+# Checking missing packages from list
+new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+
+# Install missing ones
+if(length(new.packages)) install.packages(new.packages, dependencies = TRUE)
 
 
-if("rNPBST" %in% rownames(installed.packages())){
+if("rNPBST" %in% installed.packages()[,"Package"]){
   library(rNPBST)
 } else {
   devtools::install_github("JacintoCC/rNPBST")
@@ -17,6 +17,7 @@ if("rNPBST" %in% rownames(installed.packages())){
 
 source('ApplyTests.R')
 source('FormatOutput.R')
+source('tabs.R')
 
 
 ####
