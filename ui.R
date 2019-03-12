@@ -1,3 +1,32 @@
+#  List of required packages 
+list.of.packages <- c("ggplot2","reshape2","devtools","ggtern","dplyr","shinydashboard")
+
+# Checking missing packages from list
+new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+
+# Install missing ones
+if(length(new.packages)) install.packages(new.packages, dependencies = TRUE)
+
+if(!("scmamp" %in% installed.packages()[,"Package"])){
+  devtools::install_bioc("graph")
+  devtools::install_bioc("Rgraphviz")
+  install.packages("scmamp")
+}
+
+
+if(!("rNPBST" %in% installed.packages()[,"Package"])){
+  devtools::install_github("JacintoCC/rNPBST")
+}
+
+library(ggplot2)
+library(reshape2)
+library(devtools)
+library(ggtern)
+library(dplyr)
+library(shinydashboard)
+library(scmamp)
+library(rNPBST)
+
 # Define UI for application that draws a histogram
 ui <- shinydashboard::dashboardPage(
   dashboardHeader(
