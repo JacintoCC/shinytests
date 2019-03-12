@@ -1,11 +1,19 @@
 #  List of required packages 
-list.of.packages <- c("ggplot2","reshape2","devtools","ggtern","scmamp","dplyr","shinydashboard")
+list.of.packages <- c("ggplot2","reshape2","devtools","ggtern","dplyr","shinydashboard")
 
 # Checking missing packages from list
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 
 # Install missing ones
 if(length(new.packages)) install.packages(new.packages, dependencies = TRUE)
+
+if("scmamp" %in% installed.packages()[,"Package"]){
+  library(scmamp)
+} else {
+  devtools::install_bioc("graph")
+  devtools::install_bioc("Rgraphviz")
+  install.packages("scmamp")
+}
 
 
 if("rNPBST" %in% installed.packages()[,"Package"]){
