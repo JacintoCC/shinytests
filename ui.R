@@ -94,29 +94,7 @@ ui <- shinydashboard::dashboardPage(
                                  Space = " "),
                      selected = ",")
         )
-      ),
-      hr(),
-      radioButtons("checkboxParadigm", "Select Kind of test",
-                   choices = c("Parametric", "Non-Parametric", "Bayesian"),
-                   selected = "Parametric"),
-      selectInput('test', "Test", 
-                  choices = list("None" = 0)),
-      # CONDITIONAL PANEL POST-HOC
-      conditionalPanel(
-        condition = "input.checkboxParadigm ==  \"Non-Parametric\" && input.test == \"Friedman\" || input.test == \"FriedmanAR\" || input.test == \"Quade\"",
-        checkboxInput("PostHoc", "Test Post-hoc", FALSE),
-        conditionalPanel(
-          condition = "input.PostHoc",
-          radioButtons("posthoccomparison", "Comparison",
-                       choices = c(OneVersusAll = "One vs All",
-                                   AllVersusAll = "All vs All"),
-                       selected = "One vs All"),
-          conditionalPanel("input.posthoccomparison == \"One vs All\"",
-                           selectInput("controlalgorithm", "Control Algorithm", choices = NULL, selected = NULL)),
-          selectInput("posthocmethod", "Post-hoc method",
-                      choices = list("None" = 0)
-        )
-      ))
+      )
     ),
     
     ###

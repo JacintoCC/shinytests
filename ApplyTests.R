@@ -10,6 +10,13 @@ apply.parametric.test <- function(df, test, wide.format,
                          results.anova <- unlist(summary(aov(value ~ variable, long.df)))
                        }
                        else{
+                         if(scenario.var != "None"){
+                           df <- dplyr::select_(df, .dots=paste("-",scenario.var))
+                         }
+                         if(!is.null(grouping.var)){
+                           df <- dplyr::select_(df, .dots=paste("-",grouping.var))
+                         }
+                         
                          form <- as.formula(paste(result.var,comparison.var, sep="~"))
                          results.anova <- unlist(summary(aov(form, df)))
                        }
@@ -47,6 +54,17 @@ apply.non.parametric.test <- function(df, test, wide.format,
   
   if(post.hoc & test %in% c("Friedman", "FriedmanAR", "Quade")){
     
+    if(!wide.format){
+      df <-  tidyr::spread(df, comparison.var, result.var)
+      
+      if(scenario.var != "None"){
+        df <- dplyr::select_(df, .dots=paste("-",scenario.var))
+      }
+      if(!is.null(grouping.var)){
+        df <- dplyr::select_(df, .dots=paste("-",grouping.var))
+      }
+    }
+    
     if(post.hoc.comparison == "All vs All"){
       results <- switch (test,
                          "Friedman" = scmamp::friedmanPost(df),
@@ -61,6 +79,12 @@ apply.non.parametric.test <- function(df, test, wide.format,
                         "Li" = scmamp::adjustLi(results), 
                         "Holland" = scmamp::adjustHolland(results), 
                         "Rom" = scmamp::adjustRom(results))
+      # imguR::imguR()
+      plotCD(df)
+      plot <- recordPlot()
+      # dev.off()
+      return(list(results = results,
+                  plot = plot))
     }
     else{
       results <- switch (test,
@@ -117,16 +141,10 @@ apply.bayesian.test <- function(df, test, wide.format,
     m = cbind(first.sample, second.sample)
   }
   else{
-    # variable.number <- ncol(df) - 2 - length(grouping.var)
-    # 
-    # if(scenario.var != "None")
-    #   variable.number <- variable.number -1
-    # 
-    # if(variable.number > 0)
-    #   return(NULL)
-    
-    
-    
+    if(scenario.var != "None"){
+      df <- dplyr::select_(df, .dots=paste("-",scenario.var))
+    }
+
     first.sample <- unname(unlist(dplyr::select_(dplyr::filter_(df, paste(comparison.var,"== '", firstCompGroup, "'", sep = "")),
                                    result.var)))
     second.sample <- unname(unlist(dplyr::select_(dplyr::filter_(df, paste(comparison.var,"== '", secondCompGroup, "'", sep = "")),
@@ -134,9 +152,7 @@ apply.bayesian.test <- function(df, test, wide.format,
     m = cbind(first.sample,second.sample)
     
     df <- tidyr::spread_(df,  comparison.var, result.var)
-    for (gv in grouping.var){
-      df <- dplyr::select_(df, paste0("-",gv))
-    }
+    df <- dplyr::select_(df, .dots= paste0("-",grouping.var))
   }
   
   results <- switch (test,

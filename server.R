@@ -5,6 +5,7 @@ require(reshape2)
 require(devtools)
 require(ggtern)
 require(scmamp)
+require(dplyr)
 
 
 if("rNPBST" %in% rownames(installed.packages())){
@@ -26,7 +27,7 @@ source('FormatOutput.R')
 server <- function(input, output, session) {
   # Read first dataset
   df <- reactive({
-    if(!input$defaultdataset){
+    if(!input$defaultdataset && !is.null(input$file1$datapath)){
       df <- read.csv(input$file1$datapath,
                      header = input$header,
                      sep = input$sep)
@@ -199,7 +200,6 @@ server <- function(input, output, session) {
     updateTextInput(session, "textSecondAlgorithm", "Name Second Algorithm", input$secondCompGroup)
   })
   
-  
   # Show input table
   output$contents <- renderDataTable(df()) 
   output$contents.table2 <- renderDataTable(df2()) 
@@ -326,14 +326,7 @@ server <- function(input, output, session) {
     return(is.possible)
   })
   
-  # See if there is an associated plot
-  check.plot <- reactive({
-    exists.plot <- (ncol(df()) >= 2 &&
-                      !input$additional && 
-                      input$checkboxParadigm == "Bayesian" && 
-                      input$test %in% c("Sign", "Signed-Rank", "Corr-t-test", "IDP-Wilcoxon"))
-    return(exists.plot)
-  })
+
   
   # COMPUTE TEST
   reactive.test <- reactive({
@@ -353,7 +346,6 @@ server <- function(input, output, session) {
       # Filter dataset by scenario
       if(!input$checkwideformat && long.format.vars$scenario != "None" && input$selectScenarioValue != "All"){
         df <- dplyr::filter_(df, paste(long.format.vars$scenario, "==", input$selectScenarioValue))
-        df <- dplyr::select_(df, paste0("-",long.format.vars$scenario))
       }
       
       test.result <- apply.test(df, input$checkboxParadigm, input$test, 
@@ -363,7 +355,7 @@ server <- function(input, output, session) {
                                 result.var = long.format.vars$result,
                                 grouping.var = input$checkBlockingVariable,
                                 firstCompGroup = first.comp.group, secondCompGroup = second.comp.group,
-                                post.hoc = input$PostHoc, 
+                                post.hoc = input$checkPostHoc, 
                                 post.hoc.method = input$posthocmethod,
                                 post.hoc.comparison = input$posthoccomparison,
                                 control = input$controlalgorithm)
@@ -371,41 +363,9 @@ server <- function(input, output, session) {
     
     return(test.result)
   })
+  observe({invalidateLater(5000, session)})
   
-  # Plot Test
-  reactive.plot <- reactive({
-    check.possible <- check.possible()
-    check.plot <- check.plot()
-    
-    if(check.possible && check.plot){
-      
-      test <- reactive.test()
-      plot <- plot(test)
-      
-      if (input$test == "Corr-t-test"){
-        plot <- plot + ggplot2::ggtitle(paste(input$textFirstAlgorithm,  "vs.",
-                                              input$textSecondAlgorithm,
-                                              "\nDataset:", input$textDataset))
-        return(plot)
-      }
-      else if (input$test == "Sign"){
-        plot <- plot + ggtitle("Sign test") +
-          labs(z = input$textFirstAlgorithm, x = input$textSecondAlgorithm)
-      }
-      else if (input$test == "Signed-Rank"){
-        plot <- plot +
-          ggtitle("Signed-Rank test") + 
-          labs(z = input$textFirstAlgorithm, x = input$textSecondAlgorithm)
-        
-      }
-      else if (input$test == "IDP-Wilcoxon"){
-        plot <- plot(test)
-      }
-      
-      print(plot)
-      return(NULL)
-    }
-  })
+  
   # Print Test Output in Table
   reactive.table.output <- reactive({
     # Check if is possible to execute the test
@@ -415,14 +375,22 @@ server <- function(input, output, session) {
       
       test <- reactive.test()
       
+      if(is.null(test)){
+        return(NULL)
+      }
+      
       if(input$checkboxParadigm ==  "Non-Parametric" && 
          input$test %in% c("Friedman", "FriedmanAR", "Quade") &&
-         input$PostHoc){
-        test
+         input$checkPostHoc){
+        
+        if(input$posthoccomparison == "All vs All"){
+          test <- test$results
+        }
+        
+        return(test)
       }
-      else{
-        format.table(test)
-      }
+      
+      format.table(test)
     }
     else{
       return("Test cannot be computed with current input")
@@ -435,14 +403,23 @@ server <- function(input, output, session) {
     check.possible <- check.possible()
     
     if(check.possible){
-      
       test <- reactive.test()
-      
+      if(is.null(test)){
+        return(NULL)
+      }
       if(input$checkboxParadigm ==  "Non-Parametric" && 
          input$test %in% c("Friedman", "FriedmanAR", "Quade") &&
-         input$PostHoc){
-        toString(xtable::xtable(reactive.test(), caption = "Post-hoc test",
-                                label = "tab:post-hoc"))
+         input$checkPostHoc){
+        test <- reactive.test()
+        
+        if(input$posthoccomparison == "All vs All"){
+          test <- test$results
+        }
+        
+        rNPBST::AdjustFormatTable(matrix(test, ncol = ncol(reactive.table.output()), byrow = T),
+                                  colnames = colnames(reactive.test()), 
+                                  rownames = rownames(reactive.test()),
+                                  print.code = T)
       }
       else{
         rNPBST::htest2Tex(test)
@@ -453,8 +430,57 @@ server <- function(input, output, session) {
     }
     
   })
-
   
+  # PLOT TEST
+  # Check if there is an associated plot
+  output$plotAvailable <- reactive({
+    exists.plot <- (ncol(df()) >= 2 &&
+                      !input$additional && 
+                      ((input$checkboxParadigm == "Bayesian" &&  input$test %in% c("Sign", "Signed-Rank", "Corr-t-test", "IDP-Wilcoxon")) ||
+                         (input$checkboxParadigm == "Non-Parametric" && input$test == "Friedman" && input$checkPostHoc && input$posthoccomparison == "All vs All")))
+    return(exists.plot)
+  })
+  outputOptions(output, "plotAvailable", suspendWhenHidden = FALSE)
+  # Plot the results of the test
+  reactive.plot <- reactive({
+    check.possible <- check.possible()
+    
+    if(check.possible){
+      
+      test <- reactive.test()
+      
+      if (input$test == "Corr-t-test"){
+        plot <- plot(test) + ggplot2::ggtitle(paste(input$textFirstAlgorithm,  "vs.",
+                                              input$textSecondAlgorithm,
+                                              "\nDataset:", input$textDataset))
+        return(plot)
+      }
+      else if (input$test == "Sign"){
+        plot <- plot(test) + ggtitle("Sign test") +
+          labs(z = input$textFirstAlgorithm, x = input$textSecondAlgorithm)
+      }
+      else if (input$test == "Signed-Rank"){
+        plot <- plot(test) +
+          ggtitle("Signed-Rank test") + 
+          labs(z = input$textFirstAlgorithm, x = input$textSecondAlgorithm)
+        
+      }
+      else if (input$test == "IDP-Wilcoxon"){
+        plot <- plot(test)
+      }
+      else if (input$checkboxParadigm == "Non-Parametric" && input$test == "Friedman" && input$checkPostHoc && input$posthoccomparison == "All vs All"){
+        plot <- test$plot
+        print(plot)
+        return(plot)
+      }
+      
+      print(plot)
+      return(NULL)
+    }
+  })
+
+
+  # RENDER TEST OUTPUTS
   output$table.test.result <- renderDataTable({reactive.table.output()})
   output$tex.test.result <- renderText({reactive.text.output()})
   output$plot.test <- renderPlot({reactive.plot()})

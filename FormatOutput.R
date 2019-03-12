@@ -1,5 +1,13 @@
 format.table <- function(l){
-  
+  UseMethod("format.table")
+}
+
+format.table.htest <- function(l){
+ class(l) <- "list"
+ format.table(l)
+}
+
+format.table.list <- function(l){
   if("sample" %in% names(l)){
     l$sample <- NULL
   }
@@ -33,5 +41,21 @@ format.table <- function(l){
     }
   }
   colnames(table) <- c("Attribute", paste("Value", 1:max.length))
+  return(table)
+}
+
+format.table.PosteriorT <- function(l){
+  class(l) <- "list"
+  format.table(l)
+}
+
+format.table.PosteriorIDP <- function(l){
+  class(l) <- "list"
+  format.table(l)
+}
+
+format.table.PosteriorDirichlet <- function(l){
+  table <- data.frame("Probabilities" = names(l$probabilities),
+                      "Value" = l$probabilities)
   return(table)
 }
