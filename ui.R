@@ -27,6 +27,9 @@ library(shinydashboard)
 library(scmamp)
 library(rNPBST)
 
+
+source('tabs.R')
+
 # Define UI for application that draws a histogram
 ui <- shinydashboard::dashboardPage(
   dashboardHeader(
