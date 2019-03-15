@@ -1,5 +1,5 @@
 #  List of required packages 
-list.of.packages <- c("ggplot2","reshape2","devtools","ggtern","dplyr","shinydashboard")
+list.of.packages <- c("ggplot2","reshape2","devtools","ggtern","dplyr","shinydashboard","tidyr")
 
 # Checking missing packages from list
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
