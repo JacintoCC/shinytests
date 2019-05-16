@@ -1,7 +1,7 @@
 
 
 apply.parametric.test <- function(df, test, wide.format,
-                                  result.var, comparison.var, scenario.var, 
+                                  result.var, comparison.var, scenario.var, grouping.var,
                                   firstCompGroup = 0, secondCompGroup = 0, ...){
   results <- switch (test,
                      "ANOVA" = {

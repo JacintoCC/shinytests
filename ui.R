@@ -1,4 +1,4 @@
-#  List of required packages 
+# Dependencies ----
 list.of.packages <- c("ggplot2","reshape2","devtools","ggtern","dplyr","shinydashboard","tidyr")
 
 # Checking missing packages from list
@@ -30,7 +30,7 @@ library(rNPBST)
 
 source('tabs.R')
 
-# Define UI for application that draws a histogram
+# UI ----
 ui <- shinydashboard::dashboardPage(
   dashboardHeader(
     title = "Statistical Tests"
@@ -38,7 +38,7 @@ ui <- shinydashboard::dashboardPage(
   dashboardSidebar(
       checkboxInput("defaultdataset", "Default datasets", TRUE),
       checkboxInput("checkwideformat", "Wide Format", TRUE),
-      # DEFAULT DATASET
+      # DEFAULT DATASET ----
       conditionalPanel(
         condition = "(input.defaultdataset)",
         selectInput('default.file1', "Dataset", 
@@ -66,10 +66,10 @@ ui <- shinydashboard::dashboardPage(
                   accept = c("text/csv",
                              "text/comma-separated-values,text/plain",
                              ".csv")),
-        # Input: Checkbox if file has header ----
+        # Input: Checkbox if file has header
         checkboxInput("header", "Header", TRUE),
         checkboxInput("rownames", "Rownames", FALSE),
-        # Input: Select separator ----
+        # Input: Select separator
         radioButtons("sep", "Separator",
                      choices = c(Comma = ",",
                                  Semicolon = ";",
@@ -78,14 +78,11 @@ ui <- shinydashboard::dashboardPage(
                      selected = ",")
       ),
       conditionalPanel(
-        # condition = "(input.pair == \"Parametric\" && input.test == \"t-test\") || 
-        # (input.checkboxParadigm == \"Non-Parametric\" && (input.test == \"Wilcoxon\" || input.test == \"WilcoxonRS\")) ||
-        # (input.checkboxParadigm == \"Bayesian\" && (input.test == \"Corr-t-test\" || input.test == \"Sign\" || input.test == \"Signed-Rank\" || input.test == \"IDP-Wilcoxon\"))",
         condition = "output.paircomparisontest",
         selectInput("firstCompGroup", "First Comparison Group", choices = NULL, selected = NULL),
         selectInput("secondCompGroup", "Second Comparison Group",choices = NULL, selected = NULL)
       ),
-      # ADDITIONAL FILE
+      # ADDITIONAL FILE ----
       conditionalPanel(condition = "(input.checkwideformat)",
                        hr(),
                        checkboxInput("additional", "Multiple files", FALSE)),
@@ -109,10 +106,10 @@ ui <- shinydashboard::dashboardPage(
                   accept = c("text/csv",
                              "text/comma-separated-values,text/plain",
                              ".csv")),
-        # Input: Checkbox if file has header ----
+        # Input: Checkbox if file has header
         checkboxInput("header2", "Header", TRUE),
         checkboxInput("rownames2", "Rownames", FALSE),
-        # Input: Select separator ----
+        # Input: Select separator
         radioButtons("sep2", "Separator",
                      choices = c(Comma = ",",
                                  Semicolon = ";",
@@ -123,9 +120,7 @@ ui <- shinydashboard::dashboardPage(
       )
     ),
     
-    ###
-    #    Main panel for displaying outputs
-    ###
+  # Main panel for displaying outputs ----
   dashboardBody(
     tabBox(id = "body",
            width = 12, 

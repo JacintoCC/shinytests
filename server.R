@@ -8,7 +8,7 @@ source('FormatOutput.R')
 ####
 
 server <- function(input, output, session) {
-  # Read first dataset
+  # Read datasets ----
   df <- reactive({
     if(!input$defaultdataset && !is.null(input$file1$datapath)){
       df <- read.csv(input$file1$datapath,
@@ -30,7 +30,7 @@ server <- function(input, output, session) {
     return(df)
   })
   
-  # Read additional dataset
+  # Read additional dataset 
   df2 <- reactive({
     if(input$additional){
       if(!input$defaultdataset2){
@@ -73,10 +73,9 @@ server <- function(input, output, session) {
     
   })
   
-  # Reactive Values
+  # Long format variables ----
   long.format.vars <- reactiveValues(value = NULL)
   comp.group <- reactiveValues(value = NULL)
-  
   
   # Update Select Variables
   observeEvent(df(),{
@@ -106,7 +105,6 @@ server <- function(input, output, session) {
                              selected = NULL)
   })
   
-  
   # Update Reactive values if input changes
   observeEvent(input$selectComparisonVariable,{
     long.format.vars$comp <- input$selectComparisonVariable
@@ -130,7 +128,7 @@ server <- function(input, output, session) {
     
     updateCheckboxGroupInput(session, inputId = 'checkBlockingVariable', 
                              choices = unlist(long.format.vars$block),
-                             selected = NULL)
+                             selected = unlist(long.format.vars$block))
   })
   observeEvent(long.format.vars$scenario,{
     df <- df()
@@ -183,11 +181,12 @@ server <- function(input, output, session) {
     updateTextInput(session, "textSecondAlgorithm", "Name Second Algorithm", input$secondCompGroup)
   })
   
-  # Show input table
+  # Show table ----
   output$contents <- renderDataTable(df()) 
   output$contents.table2 <- renderDataTable(df2()) 
 
-  # Update available tests if there is an aditional file
+  # Update available tests 
+  # If there is an aditional file
   observeEvent(input$additional,{
     # Update available tests if two files
     if(input$additional){
@@ -236,7 +235,7 @@ server <- function(input, output, session) {
     }
   })
   
-  # Update available tests if paradigm changes
+  # If paradigm changes
   observeEvent(input$checkboxParadigm,{
     # Update available tests if two files
     if(input$additional){
@@ -309,9 +308,7 @@ server <- function(input, output, session) {
     return(is.possible)
   })
   
-
-  
-  # COMPUTE TEST
+  # Compute Test ----
   reactive.test <- reactive({
     df <- df()
     df2 <- df2()
@@ -330,7 +327,6 @@ server <- function(input, output, session) {
       if(!input$checkwideformat && long.format.vars$scenario != "None" && input$selectScenarioValue != "All"){
         df <- dplyr::filter_(df, paste(long.format.vars$scenario, "==", input$selectScenarioValue))
       }
-      
       test.result <- apply.test(df, input$checkboxParadigm, input$test, 
                                 wide.format = input$checkwideformat,
                                 comparison.var = long.format.vars$comp,
@@ -347,7 +343,6 @@ server <- function(input, output, session) {
     return(test.result)
   })
   observe({invalidateLater(5000, session)})
-  
   
   # Print Test Output in Table
   reactive.table.output <- reactive({
@@ -414,7 +409,7 @@ server <- function(input, output, session) {
     
   })
   
-  # PLOT TEST
+  # Plot Test ----
   # Check if there is an associated plot
   output$plotAvailable <- reactive({
     exists.plot <- (ncol(df()) >= 2 &&
@@ -463,12 +458,12 @@ server <- function(input, output, session) {
   })
 
 
-  # RENDER TEST OUTPUTS
+  # Render Test Outputs ----
   output$table.test.result <- renderDataTable({reactive.table.output()})
   output$tex.test.result <- renderText({reactive.text.output()})
   output$plot.test <- renderPlot({reactive.plot()})
   
-  # UPDATE REFERENCES
+  # Update References ----
   output$test.reference <- reactive({switch(input$checkboxParadigm,
     "Parametric" ={
       switch(input$test,
@@ -495,13 +490,4 @@ server <- function(input, output, session) {
               "Bayesian-Multiple-Measures" = "de Campos, C. P., & Benavoli, A., Joint Analysis of Multiple Algorithms and Performance Measures, New Generation Computing, 35(1), 69–86 (2016)",
               "IDP-Wilcoxon" = "Benavoli, A., Mangili, F., Ruggeri, F., & Zaffalon, M. (2015). Imprecise Dirichlet Process With Application to the Hypothesis Test on the Probability That X < Y. Journal of Statistical Theory and Practice, 9(3), 658–684. http://dx.doi.org/10.1080/15598608.2014.985997")
       })})
-  
-  # output$downloadData <- downloadHandler(
-  #   filename = function() {
-  #     paste('plot-', Sys.Date(), '.png', sep='')
-  #   },
-  #   content = function(con) {
-  #     ggplot2::ggsave(plot = renderPlot(reactive.plot()), filename = con)
-  #   }
-  # )
 }
